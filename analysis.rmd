@@ -1,0 +1,190 @@
+---
+title: "Panel Data Analysis of Health Expenditure and Life Expectancy at Birth of G20 Countries"
+author: "Kowshik Sarker & Deeptam Chattopadhya"
+date: "03/05/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Human capital is considered an important factor for achieving desired economic growth and development in any country.
+Growth in human capital, in terms of education and health, positively affects per capita income in the long run.The current SARS CoV-2 outbreak has shaken the entire health system of the country and which compelled to rethink about the growth of health sector by expending more in it. In the due context, this study aims to analyze the relationship between dynamics of input and outputs of health care systems.
+
+## Data and Variables
+- We have collected the world development indicators data from World Bank Open Data <https://databank.worldbank.org/source/world-development-indicators#>.
+- We have considered the data for G20 countries from 2011 to 2020.
+- Our exploratory variable is Life Expectancy at Birth.
+- Our explanatory variables are GDP Growth, Current Health Expenditure, External Health Expenditure
+
+## Hypothesis
+- Panel data modeling will give the best estimation for the dataset compared to POLS.
+- Current health expenditure positively influence Life Expectancy.
+- More the GDP Growth more will be the Health Expenditure
+- External Health Expenditure has significant impact on Life Expectancy at Birth, thus providing strong point on FDI in health sector.
+
+## Methodology
+1. POLS (Pooled OLS)
+2. Check for Heterogeneity both in Entity and Time.
+3. Poolability Check
+4. FEM (One Way & Two Way)
+5. REM (One Way and Two Way)
+6. Test for stability between FEM and REM
+7. System GMM
+8. Difference GMM
+9. Panel Var
+10. Final Model Comparison Based in Adjusted R-Squared and other Criterion.
+
+## Basic EDA
+```{r,echo=FALSE,message=FALSE}
+library(plm)
+library(ggplot2)
+library(gplots)
+library(stargazer)
+library(ggpubr)
+library(panelvar)
+library(dplyr)
+data<-read.csv("data.csv")
+pdata<-pdata.frame(data,index = c("Country","Year"))
+str(data)
+top5_life<-as.data.frame(data %>% group_by(Country) %>% summarise(avg_life_exp=mean(Life_Exp_At_Brth))%>%top_n(5))
+
+ggplot(top5_life,aes(x=Country,y=avg_life_exp))+
+  geom_bar(stat="identity",fill="steelblue")+
+  geom_text(aes(label=round(avg_life_exp,0)), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+
+last5_life<-as.data.frame(data %>% group_by(Country) %>% summarise(avg_life_exp=mean(Life_Exp_At_Brth))%>%top_n(-10))
+
+ggplot(last5_life,aes(x=Country,y=avg_life_exp))+
+  geom_bar(stat="identity",fill="steelblue")+
+  geom_text(aes(label=round(avg_life_exp,0)), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+
+top5_exp<-as.data.frame(data %>% group_by(Country) %>% summarise(avg_exp=mean(Curr_Hlth_Exp))%>%top_n(5))
+
+
+ggplot(top5_exp,aes(x=Country,y=avg_exp))+
+  geom_bar(stat="identity",fill="steelblue")+
+  geom_text(aes(label=round(avg_exp,0)), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+
+last5_exp<-as.data.frame(data %>% group_by(Country) %>% summarise(avg_exp=mean(Curr_Hlth_Exp))%>%top_n(-5))
+
+
+ggplot(last5_exp,aes(x=Country,y=avg_exp))+
+  geom_bar(stat="identity",fill="steelblue")+
+  geom_text(aes(label=round(avg_exp,0)), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+```
+
+## Countrywise Life Expectancy Plot trend
+```{r,echo=FALSE,message=FALSE}
+P1<-ggplot(data,aes(x=Year,y=Life_Exp_At_Brth,color=Country))+geom_point()+facet_grid(~Country,scales = "free_y")
+P2<-ggplot(data,aes(y=Life_Exp_At_Brth,color=Country))+geom_boxplot()+facet_wrap(~Country,nrow = 1)
+ggplot(data,aes(x=Curr_Hlth_Exp,y=Life_Exp_At_Brth,color=Country))+geom_point()+facet_wrap(~Country,nrow = 5,scales = "free_y")
+ggarrange(P1,P2,nrow=2,labels = "AUTO")
+```
+
+## POLS
+```{r, echo=FALSE,message=FALSE}
+pooled<-plm(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,model="pooling")
+summary(pooled)
+```
+
+## Heterogeneity Check
+```{r,echo=FALSE,message=FALSE}
+plotmeans(Life_Exp_At_Brth~Country,main="Heterogineity across countries",data = pdata)
+plotmeans(Life_Exp_At_Brth~Year,main="Heterogineity across time",data = pdata)
+```
+Since the mean of the life expectancy is correlated with the countries, thus if we run POLS, there will be correlation between the error term and y, which present heteroskedasticity.
+
+## One Way FEM
+```{r,echo=FALSE,message=FALSE}
+one_fem<-plm(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,model="within")
+summary(one_fem)
+```
+
+## Two Way FEM
+```{r,echo=FALSE,message=FALSE}
+two_fem<-plm(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,model="within",effect = "twoways")
+summary(two_fem)
+```
+
+## One Way REM
+```{r,echo=FALSE,message=FALSE}
+one_rem<-plm(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,model="random")
+summary(one_rem)
+```
+
+## Two Way REM
+```{r,echo=FALSE,message=FALSE}
+two_rem<-plm(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,model="random",effect = "twoways")
+summary(two_rem)
+```
+
+## Poolability Test and Effect Test
+```{r,echo=FALSE,message=FALSE}
+pooltest(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,model="within")
+plmtest(Life_Exp_At_Brth~GDP_Grwth+Curr_Hlth_Exp+Ext_Hlth_Exp,data=pdata,effect = "twoways",type = "ghm")
+```
+- From the pooltest we can see that the same coefficients do not apply to each country. Thus the mean of each country is different across time.
+- From plm test we can interpret that there is significant individual and time effects exists.
+
+## Model Consistency Check
+```{r,echo=FALSE,message=FALSE}
+pFtest(two_fem,pooled)
+phtest(two_fem,two_rem)
+```
+From both the test we can interpret that FEM and REM both are consistent enough to describe the individual and time effect better that POLS.
+
+## Preliminary Model Summary
+```{r,echo=FALSE,message=FALSE}
+stargazer(list(one_fem,two_fem,one_rem,two_rem),type = "text",keep.stat = c("n","rsq","adj.rsq","aic","bic"))
+```
+
+## Causality test and Autocorrelation Check
+```{r,echo=FALSE,message=FALSE}
+pgrangertest(Life_Exp_At_Brth~Curr_Hlth_Exp,data = pdata)
+pacf(pdata$Life_Exp_At_Brth,main="Autocorrelation Plot")
+```
+
+## System GMM
+```{r,echo=FALSE,message=FALSE}
+sysgmm<-pgmm(Life_Exp_At_Brth~lag(GDP_Grwth,3)+lag(Curr_Hlth_Exp,3)+diff(Ext_Hlth_Exp,3)|lag(Life_Exp_At_Brth,2:99),data = pdata,index =c("Country","Year"),model = "twosteps",effect = "twoways" ,collapse=TRUE,transformation = "ld")
+summary(sysgmm)
+```
+
+## Difference GMM
+```{r,echo=FALSE,message=FALSE}
+diffgmm<-pgmm(Life_Exp_At_Brth~diff(GDP_Grwth,1:1)+diff(Curr_Hlth_Exp,1:1)+diff(Ext_Hlth_Exp,1:1)|lag(Life_Exp_At_Brth,2:99),data = pdata,index =c("Country","Year"),model = "twosteps",effect = "twoways" ,collapse=TRUE,transformation = "d",fsm = "full")
+summary(diffgmm)
+```
+
+## Panel VAR
+```{r,echo=FALSE,message=FALSE}
+pvar <-pvargmm(
+  dependent_vars = c("Life_Exp_At_Brth","Curr_Hlth_Exp","GDP_Grwth","Ext_Hlth_Exp"),
+  lags = 2,
+  #exog_vars = c("INDB"),
+  transformation = "fd",
+  data = pdata,
+  panel_identifier = c("Country", "Year"),
+  steps = c("twostep"),
+  system_instruments = TRUE,
+  max_instr_dependent_vars = 99,
+  min_instr_dependent_vars = 2L,
+  collapse = TRUE
+)
+
+summary(pvar)
+```
+
+## Final Model Comparison and Selection
+```{r,echo=FALSE,message=FALSE}
+stargazer(list(pooled,one_fem,two_fem,one_rem,two_rem),type = "text",report=('vc*p'))
+stargazer(list(sysgmm,diffgmm),type = "text",report=('vc*p'))
+```
